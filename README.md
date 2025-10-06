@@ -2,6 +2,7 @@
 
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/) 
 [![License](https://img.shields.io/badge/license-GPLv3-green.svg)](LICENSE)
+[![Build GUI EXE](https://github.com/chamindudilsh/revanced-gui/actions/workflows/build.yml/badge.svg)](https://github.com/chamindudilsh/revanced-gui/actions/workflows/build.yml)
 [![Release](https://img.shields.io/github/v/release/chamindudilsh/revanced-gui?color=blue)](https://github.com/chamindudilsh/revanced-gui/releases)
 
 **Graphical User Interface for ReVanced CLI – Easily patch apps without touching the terminal!**
