@@ -1,5 +1,8 @@
 # ReVanced GUI (Python)
 
+[![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/) 
+[![License](https://img.shields.io/badge/license-GPLv3-green.svg)](LICENSE)
+
 **Graphical Python interface for ReVanced CLI – Easily Patch without touching the terminal!**
 ---
 
