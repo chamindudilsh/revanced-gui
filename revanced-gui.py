@@ -248,7 +248,7 @@ def open_settings():
     # About Tab
     about_frame = tabview.tab("About")
     ctk.CTkLabel(about_frame, text="ReVanced GUI v1.2", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(10, 5))
-    ctk.CTkLabel(about_frame, text="A modern & clean front-end for the ReVanced CLI.", justify="center").pack(pady=(0, 10), padx=10)
+    ctk.CTkLabel(about_frame, text="A modern & clean front-end for the ReVanced CLI", justify="center").pack(pady=(0, 10), padx=10)
     ctk.CTkLabel(about_frame, text="This GUI provides a user-friendly interface for patching Android applications using ReVanced.", justify="center", wraplength=380).pack(padx=10)
 
     def open_url(url):
