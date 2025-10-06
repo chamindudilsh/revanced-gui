@@ -276,7 +276,7 @@ def clear_logs():
 
 root = ctk.CTk()
 root.title("ReVanced GUI")
-root.iconbitmap('assets/icon.ico')
+# root.iconbitmap('assets/icon.ico')
 root.geometry("800x600")
 
 settings = load_settings()
