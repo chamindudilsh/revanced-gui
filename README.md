@@ -34,10 +34,7 @@ This is a personal project created for convenience and educational purposes only
 2. Double-click to run the GUI
 3. Follow the on-screen instructions.
 
-## 💻 Installation
-
-> [!NOTE]
-> Standalone Windows executables (.exe) will be available in [GitHub releases](https://github.com/chamindudilsh/revanced-gui/releases)
+## 💻 Installation (Running from source)
 
 1. Clone the repository:  
 ```bash
