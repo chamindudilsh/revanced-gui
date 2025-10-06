@@ -1,262 +1,242 @@
+# Requirements: pip install customtkinter pillow
 
-import os
-import sys
-import threading
-import subprocess
-import shlex
-import webbrowser
-from pathlib import Path
-import tkinter as tk
-from tkinter import filedialog, messagebox
 import customtkinter as ctk
+from tkinter import filedialog, messagebox
+import subprocess
+import json
+import os
 
-# ---------- Configuration ----------
-CLI_DOWNLOAD_URL = "https://github.com/ReVanced/revanced-cli/releases"
-PATCHES_DOWNLOAD_URL = "https://github.com/ReVanced/revanced-patches/releases"
-DEFAULT_OUTPUT_NAME = "revanced-output.apk"
-# -----------------------------------
+SETTINGS_FILE = "settings.json"
 
-ctk.set_appearance_mode("System")
-ctk.set_default_color_theme("dark-blue")
+
+def load_settings():
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, "r") as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+
+def save_settings(data):
+    with open(SETTINGS_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+settings = load_settings()
+
+ctk.set_appearance_mode(settings.get("theme", "system"))
+ctk.set_default_color_theme("blue")
+
 
 class ReVancedGUI(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("ReVanced GUI")
-        self.geometry("900x600")
-        self.minsize(800, 520)
+        self.geometry("900x700")
+        self.minsize(850, 600)
+        self.iconbitmap("assets/icon.ico") if os.path.exists("assets/icon.ico") else None
 
-        # Variables
-        self.cli_path = tk.StringVar()
-        self.patches_path = tk.StringVar()
-        self.apk_path = tk.StringVar()
-        self.output_folder = tk.StringVar(value=str(Path.home()))
-        self.use_default_selection = tk.BooleanVar(value=True)
-        self.process = None
+        self.create_ui()
+        self.load_previous()
 
-        # Layout: top frame for inputs, middle for logs, bottom for patch button
-        self._build_inputs_frame()
-        self._build_log_frame()
-        self._build_bottom_frame()
+    def create_ui(self):
+        # Top Bar
+        self.top_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.top_frame.pack(fill="x", pady=(10, 5), padx=10)
+        self.title_label = ctk.CTkLabel(self.top_frame, text="🧩 ReVanced GUI", font=ctk.CTkFont(size=22, weight="bold"))
+        self.title_label.pack(side="left")
 
-    def _build_inputs_frame(self):
-        frame = ctk.CTkFrame(self, corner_radius=8)
-        frame.pack(fill="x", padx=16, pady=(12,8))
+        self.settings_btn = ctk.CTkButton(self.top_frame, text="⚙️", width=40, command=self.open_settings)
+        self.settings_btn.pack(side="right")
 
-        # ReVanced CLI
-        ctk.CTkLabel(frame, text="ReVanced CLI (.jar)", anchor="w").grid(row=0, column=0, sticky="w", padx=12, pady=(10,4))
-        entry_cli = ctk.CTkEntry(frame, textvariable=self.cli_path, width=680)
-        entry_cli.grid(row=1, column=0, padx=12, pady=(0,10), sticky="w")
-        btn_cli_browse = ctk.CTkButton(frame, text="📁", width=40, command=self.browse_cli)
-        btn_cli_browse.grid(row=1, column=1, padx=(6,2), pady=(0,10))
-        btn_cli_download = ctk.CTkButton(frame, text="⬇️", width=40, command=lambda: webbrowser.open(CLI_DOWNLOAD_URL))
-        btn_cli_download.grid(row=1, column=2, padx=(2,12), pady=(0,10))
+        # Main Input Section
+        self.main_frame = ctk.CTkFrame(self)
+        self.main_frame.pack(fill="both", expand=True, padx=10, pady=5)
 
-        # Patches .rvp
-        ctk.CTkLabel(frame, text="Patches (.rvp/.jar)", anchor="w").grid(row=2, column=0, sticky="w", padx=12, pady=(4,4))
-        entry_patches = ctk.CTkEntry(frame, textvariable=self.patches_path, width=680)
-        entry_patches.grid(row=3, column=0, padx=12, pady=(0,10), sticky="w")
-        btn_patches_browse = ctk.CTkButton(frame, text="📁", width=40, command=self.browse_patches)
-        btn_patches_browse.grid(row=3, column=1, padx=(6,2), pady=(0,10))
-        btn_patches_download = ctk.CTkButton(frame, text="⬇️", width=40, command=lambda: webbrowser.open(PATCHES_DOWNLOAD_URL))
-        btn_patches_download.grid(row=3, column=2, padx=(2,12), pady=(0,10))
+        def labeled_entry(label, var, browse_func):
+            row = ctk.CTkFrame(self.main_frame)
+            row.pack(fill="x", pady=6)
+            ctk.CTkLabel(row, text=label, width=130, anchor="w").pack(side="left", padx=6)
+            entry = ctk.CTkEntry(row, textvariable=var)
+            entry.pack(side="left", fill="x", expand=True, padx=6)
+            ctk.CTkButton(row, text="📂", width=40, command=browse_func).pack(side="left", padx=4)
+            return entry
 
-        # APK file
-        ctk.CTkLabel(frame, text="APK file", anchor="w").grid(row=4, column=0, sticky="w", padx=12, pady=(4,4))
-        entry_apk = ctk.CTkEntry(frame, textvariable=self.apk_path, width=680)
-        entry_apk.grid(row=5, column=0, padx=12, pady=(0,10), sticky="w")
-        btn_apk_browse = ctk.CTkButton(frame, text="📁", width=40, command=self.browse_apk)
-        btn_apk_browse.grid(row=5, column=1, padx=(6,2), pady=(0,10))
-        # no download for apk
+        self.cli_path = ctk.StringVar()
+        labeled_entry("ReVanced CLI (.jar):", self.cli_path, self.browse_cli)
 
-        # Output folder
-        ctk.CTkLabel(frame, text="Output folder", anchor="w").grid(row=6, column=0, sticky="w", padx=12, pady=(4,4))
-        entry_out = ctk.CTkEntry(frame, textvariable=self.output_folder, width=560)
-        entry_out.grid(row=7, column=0, padx=12, pady=(0,10), sticky="w")
-        btn_out = ctk.CTkButton(frame, text="Browse", width=80, command=self.browse_output_folder)
-        btn_out.grid(row=7, column=1, padx=(6,2), pady=(0,10), sticky="w")
+        self.patches_path = ctk.StringVar()
+        labeled_entry("Patches (.rvp/.jar):", self.patches_path, self.browse_patches)
 
-        # Checkbox and Advanced
-        chk = ctk.CTkCheckBox(frame, text="Use default patch selection", variable=self.use_default_selection)
-        chk.grid(row=8, column=0, sticky="w", padx=12, pady=(6,12))
+        self.apk_path = ctk.StringVar()
+        labeled_entry("APK file:", self.apk_path, self.browse_apk)
 
-        self.adv_button = ctk.CTkButton(frame, text="Advanced ▼", width=120, command=self.toggle_advanced)
-        self.adv_button.grid(row=8, column=1, padx=(6,12), pady=(6,12), sticky="e")
+        self.output_dir = ctk.StringVar()
+        row = ctk.CTkFrame(self.main_frame)
+        row.pack(fill="x", pady=6)
+        ctk.CTkLabel(row, text="Output folder:", width=130, anchor="w").pack(side="left", padx=6)
+        ctk.CTkEntry(row, textvariable=self.output_dir).pack(side="left", fill="x", expand=True, padx=6)
+        ctk.CTkButton(row, text="Browse", width=70, command=self.browse_output).pack(side="left", padx=4)
 
-        # Advanced frame (initially hidden)
-        self.advanced_frame = ctk.CTkFrame(frame, corner_radius=6)
-        self.advanced_visible = False
+        # Advanced Checkbox
+        self.default_patch = ctk.BooleanVar(value=True)
+        ctk.CTkCheckBox(self.main_frame, text="Use default patch selection", variable=self.default_patch).pack(anchor="w", padx=10, pady=8)
 
-    def _build_log_frame(self):
-        lbl = ctk.CTkLabel(self, text="Log Output", anchor="w")
-        lbl.pack(fill="x", padx=16, pady=(6,0))
-        self.log_box = ctk.CTkTextbox(self, width=0, height=14, corner_radius=6)
-        self.log_box.pack(fill="both", expand=True, padx=16, pady=(4,8))
+        # Log output
+        ctk.CTkLabel(self.main_frame, text="Log Output").pack(anchor="w", padx=10, pady=(10, 0))
+        self.log_box = ctk.CTkTextbox(self.main_frame, height=180)
+        self.log_box.pack(fill="both", expand=True, padx=10, pady=6)
 
-    def _build_bottom_frame(self):
-        bottom = ctk.CTkFrame(self, corner_radius=8)
-        bottom.pack(fill="x", padx=16, pady=(0,16))
-        self.patch_btn = ctk.CTkButton(bottom, text="Patch", height=48, command=self.start_patch, font=ctk.CTkFont(size=18, weight="bold"))
-        self.patch_btn.pack(fill="x", padx=12, pady=12)
+        log_btns = ctk.CTkFrame(self.main_frame)
+        log_btns.pack(fill="x", padx=10, pady=(0, 10))
+        ctk.CTkButton(log_btns, text="Copy Log", width=120, command=self.copy_log).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(log_btns, text="Clear Log", width=120, command=self.clear_log).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(log_btns, text="Open Log Folder", width=150, command=self.open_log_folder).pack(side="left")
 
-    # ---------- Browsers ----------
+        # Patch Button
+        self.patch_btn = ctk.CTkButton(self, text="Patch", height=50, font=ctk.CTkFont(size=18, weight="bold"), command=self.run_patch)
+        self.patch_btn.pack(fill="x", padx=10, pady=10)
+
+    # Browse functions
     def browse_cli(self):
-        p = filedialog.askopenfilename(title="Select ReVanced CLI .jar", filetypes=[("JAR files","*.jar"), ("All files","*.*")])
-        if p:
-            self.cli_path.set(p)
+        path = filedialog.askopenfilename(title="Select ReVanced CLI .jar", filetypes=[("JAR Files", "*.jar")])
+        if path:
+            self.cli_path.set(path)
+            self.save_paths()
 
     def browse_patches(self):
-        p = filedialog.askopenfilename(title="Select patches (.rvp/.jar)", filetypes=[("Patch files","*.rvp;*.jar"), ("All files","*.*")])
-        if p:
-            self.patches_path.set(p)
+        path = filedialog.askopenfilename(title="Select Patches File", filetypes=[("Patch Files", "*.rvp *.jar")])
+        if path:
+            self.patches_path.set(path)
+            self.save_paths()
 
     def browse_apk(self):
-        p = filedialog.askopenfilename(title="Select APK file", filetypes=[("APK files","*.apk"), ("All files","*.*")])
-        if p:
-            self.apk_path.set(p)
+        path = filedialog.askopenfilename(title="Select APK File", filetypes=[("APK Files", "*.apk")])
+        if path:
+            self.apk_path.set(path)
+            self.save_paths()
 
-    def browse_output_folder(self):
-        p = filedialog.askdirectory(title="Select output folder", initialdir=self.output_folder.get() or str(Path.home()))
-        if p:
-            self.output_folder.set(p)
+    def browse_output(self):
+        path = filedialog.askdirectory(title="Select Output Folder")
+        if path:
+            self.output_dir.set(path)
+            self.save_paths()
 
-    def toggle_advanced(self):
-        if self.advanced_visible:
-            self.advanced_frame.pack_forget()
-            self.adv_button.configure(text="Advanced ▼")
-            self.advanced_visible = False
-        else:
-            # add stub content
-            if not self.advanced_frame.winfo_children():
-                ctk.CTkLabel(self.advanced_frame, text="Advanced options (coming soon)").pack(padx=8, pady=8)
-            self.advanced_frame.pack(fill="x", padx=12, pady=(0,8))
-            self.adv_button.configure(text="Advanced ▲")
-            self.advanced_visible = True
+    def save_paths(self):
+        settings.update({
+            "cli_path": self.cli_path.get(),
+            "patches_path": self.patches_path.get(),
+            "apk_path": self.apk_path.get(),
+            "output_dir": self.output_dir.get()
+        })
+        save_settings(settings)
 
-    # ---------- Logging ----------
-    def log(self, text):
-        # insert at end and autoscroll
-        self.log_box.configure(state="normal")
-        self.log_box.insert("end", text + "\n")
-        self.log_box.see("end")
-        self.log_box.configure(state="disabled")
+    def load_previous(self):
+        for k, v in settings.items():
+            if hasattr(self, k):
+                getattr(self, k).set(v)
 
-    # ---------- Patch process ----------
-    def start_patch(self):
-        if self.process:
-            messagebox.showinfo("Process running", "A patching process is already running.")
-            return
+    def copy_log(self):
+        self.clipboard_clear()
+        self.clipboard_append(self.log_box.get("1.0", "end").strip())
+        messagebox.showinfo("Copied", "Log copied to clipboard.")
 
-        cli = self.cli_path.get().strip()
-        patches = self.patches_path.get().strip()
-        apk = self.apk_path.get().strip()
-        out_folder = self.output_folder.get().strip()
-
-        if not cli or not os.path.isfile(cli):
-            messagebox.showerror("Missing CLI", "Please select a valid revanced-cli .jar file.")
-            return
-        if not patches or not os.path.isfile(patches):
-            messagebox.showerror("Missing patches", "Please select a valid patches file (.rvp or .jar).")
-            return
-        if not apk or not os.path.isfile(apk):
-            messagebox.showerror("Missing APK", "Please select a valid APK file.")
-            return
-        if not out_folder or not os.path.isdir(out_folder):
-            messagebox.showerror("Missing Output", "Please select a valid output folder.")
-            return
-
-        # Determine output apk path
-        input_apk_name = Path(apk).stem
-        out_apk_path = Path(out_folder) / f"{input_apk_name}-revanced.apk"
-
-        # Build command based on common revanced-cli usage.
-        # We'll use: java -jar revanced-cli.jar patch -a input.apk -o output.apk -b patches.rvp
-        cmd = [
-            "java", "-jar", cli,
-            "patch",
-            "-a", apk,
-            "-o", str(out_apk_path),
-            "-b", patches
-        ]
-        # If user wants default selection (checked) we pass --select-default (if applicable).
-        # Since revanced-cli flags may vary, we only add a commonly used flag if checkbox is set.
-        if self.use_default_selection.get():
-            # Many revanced-cli versions use --select or --auto or --default. We try --select-default then fallback.
-            # Keeping a safe no-op: do not add an unknown flag that would break; instead, pass --auto if available.
-            # We'll attempt with --auto as an extra arg; if it fails, user will see CLI output with error.
-            cmd.append("--auto")
-
-        # Disable UI button and run in thread
-        self.patch_btn.configure(state="disabled")
-        self.log_box.configure(state="normal")
+    def clear_log(self):
         self.log_box.delete("1.0", "end")
-        self.log_box.configure(state="disabled")
-        self.log(f"Running: {' '.join(shlex.quote(c) for c in cmd)}")
-        thread = threading.Thread(target=self._run_subprocess, args=(cmd, out_apk_path), daemon=True)
-        thread.start()
 
-    def _run_subprocess(self, cmd, out_apk_path):
+    def open_log_folder(self):
+        folder = settings.get("log_folder")
+        if folder and os.path.exists(folder):
+            os.startfile(folder)
+        else:
+            messagebox.showwarning("Not Found", "No log folder configured.")
+
+    def get_unique_filename(self, path):
+        base, ext = os.path.splitext(path)
+        counter = 1
+        new_path = path
+        while os.path.exists(new_path):
+            new_path = f"{base} ({counter}){ext}"
+            counter += 1
+        return new_path
+
+    def run_patch(self):
+        cli, patches, apk, outdir = self.cli_path.get(), self.patches_path.get(), self.apk_path.get(), self.output_dir.get()
+        if not all([cli, patches, apk, outdir]):
+            messagebox.showerror("Error", "Please fill all paths before patching.")
+            return
+
+        apk_name = os.path.basename(apk).replace(".apk", "-revanced.apk")
+        output_path = os.path.join(outdir, apk_name)
+        output_path = self.get_unique_filename(output_path)
+
+        cmd = ["java", "-jar", cli, "patch", apk, "-p", patches, "-o", output_path]
+        self.log_box.insert("end", f"\nRunning: {' '.join(cmd)}\n\n")
+        self.patch_btn.configure(state="disabled", text="Patching...")
+
         try:
-            # Create subprocess and stream output
-            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1, universal_newlines=True)
-            self.process = proc
-            for line in proc.stdout:
-                self.log(line.rstrip())
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            for line in iter(proc.stdout.readline, ''):
+                self.log_box.insert("end", line)
+                self.log_box.see("end")
+                self.update_idletasks()
             proc.wait()
-            rc = proc.returncode
-            if rc == 0 and out_apk_path.exists():
-                self.log("Patching completed successfully.")
-                self._on_patch_complete(out_apk_path)
-            else:
-                self.log(f"Patching finished with return code {rc}. Check output above for errors.")
-                self._on_patch_complete(out_apk_path, success=(rc==0))
-        except FileNotFoundError as e:
-            self.log("Error: Java not found. Make sure Java is installed and added to PATH.")
-            messagebox.showerror("Java not found", "Java was not found on this system. Please install Java and ensure 'java' is in PATH.")
+            self.log_box.insert("end", f"\nPatching finished with return code {proc.returncode}\n")
         except Exception as e:
-            self.log(f"Unexpected error: {e}")
-            messagebox.showerror("Error", f"Unexpected error: {e}")
-        finally:
-            self.process = None
-            self.patch_btn.configure(state="normal")
+            self.log_box.insert("end", f"\nError: {e}\n")
 
-    def _on_patch_complete(self, out_apk_path, success=True):
-        # Show a custom dialog with "Show in folder" and "Close"
-        def open_folder():
-            try:
-                p = str(out_apk_path.resolve())
-                # Windows: explorer /select, "C:\path\to\file.apk"
-                if sys.platform.startswith("win"):
-                    subprocess.run(["explorer", "/select,", p])
-                else:
-                    # For other OS, just open folder
-                    folder = str(out_apk_path.parent)
-                    webbrowser.open(folder)
-            except Exception as e:
-                messagebox.showerror("Open folder failed", str(e))
-            finally:
-                dlg.destroy()
+        self.patch_btn.configure(state="normal", text="Patch")
 
-        def close():
-            dlg.destroy()
+    def open_settings(self):
+        SettingsWindow(self)
 
-        dlg = tk.Toplevel(self)
-        dlg.title("Patching Completed" if success else "Patching Finished")
-        dlg.geometry("420x120")
-        dlg.resizable(False, False)
-        lbl = tk.Label(dlg, text="Patching Completed" if success else "Patching finished (see log)", font=("Segoe UI", 11))
-        lbl.pack(pady=(16,8))
-        btn_frame = tk.Frame(dlg)
-        btn_frame.pack(pady=8)
-        b1 = tk.Button(btn_frame, text="Show in folder", width=15, command=open_folder)
-        b1.pack(side="left", padx=12)
-        b2 = tk.Button(btn_frame, text="Close", width=10, command=close)
-        b2.pack(side="right", padx=12)
 
-        # Keep dialog on top
-        dlg.transient(self)
-        dlg.grab_set()
-        self.wait_window(dlg)
+class SettingsWindow(ctk.CTkToplevel):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("Settings")
+        self.geometry("400x350")
+        ctk.CTkLabel(self, text="Settings", font=ctk.CTkFont(size=18, weight="bold")).pack(pady=10)
+
+        self.theme_option = ctk.CTkOptionMenu(self, values=["system", "dark", "light"], command=self.change_theme)
+        self.theme_option.set(settings.get("theme", "system"))
+        self.theme_option.pack(pady=10)
+
+        self.log_toggle = ctk.CTkSwitch(self, text="Enable Log Saving", command=self.toggle_logs)
+        self.log_toggle.select() if settings.get("log_folder") else self.log_toggle.deselect()
+        self.log_toggle.pack(pady=10)
+
+        self.choose_log_btn = ctk.CTkButton(self, text="Select Log Folder", command=self.select_log_folder)
+        self.choose_log_btn.pack(pady=5)
+
+        self.open_log_btn = ctk.CTkButton(self, text="Open Log Folder", command=self.open_log)
+        self.open_log_btn.pack(pady=5)
+
+    def change_theme(self, value):
+        settings["theme"] = value
+        save_settings(settings)
+        ctk.set_appearance_mode(value)
+
+    def toggle_logs(self):
+        if not self.log_toggle.get():
+            settings.pop("log_folder", None)
+            save_settings(settings)
+
+    def select_log_folder(self):
+        path = filedialog.askdirectory(title="Select Log Folder")
+        if path:
+            settings["log_folder"] = path
+            save_settings(settings)
+
+    def open_log(self):
+        folder = settings.get("log_folder")
+        if folder and os.path.exists(folder):
+            os.startfile(folder)
+        else:
+            messagebox.showwarning("Not Found", "No log folder set.")
+
 
 if __name__ == "__main__":
     app = ReVancedGUI()
