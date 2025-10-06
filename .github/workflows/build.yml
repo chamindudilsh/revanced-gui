@@ -66,7 +66,7 @@ jobs:
     # 8️⃣ Build EXE
     - name: Build EXE
       run: |
-        pyinstaller --onefile --icon=assets/icon.ico --name=revanced-gui-${{ env.VERSION }} revanced-gui.py
+        pyinstaller --onefile --noconsole --icon=assets/icon.ico --name=revanced-gui-${{ env.VERSION }} revanced-gui.py
 
     # 9️⃣ Upload EXE artifact (for PRs and regular pushes)
     - name: Upload EXE artifact
