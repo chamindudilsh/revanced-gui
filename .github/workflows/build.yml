@@ -14,14 +14,17 @@ jobs:
     runs-on: windows-latest
 
     steps:
+    # 1️⃣ Checkout repo
     - name: Checkout repository
       uses: actions/checkout@v3
 
+    # 2️⃣ Setup Python
     - name: Setup Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.12'
 
+    # 3️⃣ Cache pip packages
     - name: Cache pip
       uses: actions/cache@v3
       with:
@@ -30,43 +33,49 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-pip-
 
-    # ✅ Lint step
+    # 4️⃣ Lint Python
     - name: Lint Python
       run: |
         python -m pip install --upgrade pip
         pip install flake8
-        flake8 revanced-gui.py
+        flake8 .
 
+    # 5️⃣ Install dependencies
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        if (Test-Path "requirements.txt") { pip install -r requirements.txt }
         pip install pyinstaller
 
+    # 6️⃣ Determine version
     - name: Determine version
       id: version
       run: |
-        if [ -n "$GITHUB_REF_NAME" ] && [[ "$GITHUB_REF_NAME" == v* ]]; then
-          VERSION=${GITHUB_REF_NAME#v}
-        else
-          VERSION="latest"
-        fi
-        echo "VERSION=$VERSION" >> $GITHUB_ENV
+        if ($env:GITHUB_REF_NAME -and $env:GITHUB_REF_NAME.StartsWith("v")) {
+            $version = $env:GITHUB_REF_NAME.Substring(1)
+        } else {
+            $version = "latest"
+        }
+        echo "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
 
+    # 7️⃣ Clean old builds
     - name: Clean old builds
       run: |
-        rm -rf build/ dist/ *.spec || true
+        Remove-Item -Recurse -Force build, dist, *.spec -ErrorAction SilentlyContinue
 
+    # 8️⃣ Build EXE
     - name: Build EXE
       run: |
         pyinstaller --onefile --icon=assets/icon.ico --name=revanced-gui-${{ env.VERSION }} revanced-gui.py
 
+    # 9️⃣ Upload EXE artifact (for PRs and regular pushes)
     - name: Upload EXE artifact
       uses: actions/upload-artifact@v4
       with:
         name: revanced-gui-exe
         path: dist/revanced-gui-${{ env.VERSION }}.exe
 
+    # 🔟 Create GitHub Release (only for tags)
     - name: Create Release
       if: startsWith(github.ref, 'refs/tags/v')
       uses: softprops/action-gh-release@v1
@@ -78,6 +87,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+    # 1️⃣1️⃣ Upload EXE and source .py to Release (only for tags)
     - name: Upload EXE and Source to Release
       if: startsWith(github.ref, 'refs/tags/v')
       uses: softprops/action-gh-release@v1
