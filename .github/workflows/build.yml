@@ -1,0 +1,89 @@
+name: Build ReVanced GUI EXE
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - '*' 
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-exe:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Cache pip
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    # ✅ Lint step
+    - name: Lint Python
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8
+        flake8 revanced-gui.py
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        pip install pyinstaller
+
+    - name: Determine version
+      id: version
+      run: |
+        if [ -n "$GITHUB_REF_NAME" ] && [[ "$GITHUB_REF_NAME" == v* ]]; then
+          VERSION=${GITHUB_REF_NAME#v}
+        else
+          VERSION="latest"
+        fi
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+    - name: Clean old builds
+      run: |
+        rm -rf build/ dist/ *.spec || true
+
+    - name: Build EXE
+      run: |
+        pyinstaller --onefile --icon=assets/icon.ico --name=revanced-gui-${{ env.VERSION }} revanced-gui.py
+
+    - name: Upload EXE artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: revanced-gui-exe
+        path: dist/revanced-gui-${{ env.VERSION }}.exe
+
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.ref_name }}
+        name: ${{ github.ref_name }}
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload EXE and Source to Release
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          dist/revanced-gui-${{ env.VERSION }}.exe
+          revanced-gui.py
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
