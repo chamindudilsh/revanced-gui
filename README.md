@@ -21,6 +21,12 @@ This is a personal project created for convenience and educational purposes only
 - No need to run terminal commands  
 - Cross-platform cuz Python (Windows/Linux/macOS)
 
+## 📝 To do
+- [x] Modern UI
+- [x] Works well for default patches
+- [ ] Support for Exlusive patching
+- [ ] ADB support for installing apk
+
 ## 🤝 Requirements
 
 - Java Runtime Environment 11 ([Azul Zulu JRE](https://www.azul.com/downloads/?version=java-11-lts&package=jre#zulu) or [OpenJDK](https://jdk.java.net/archive/))
@@ -29,7 +35,6 @@ This is a personal project created for convenience and educational purposes only
 > Python is only required if you are running ```revanced-gui.py``` directly.
 
 ---
-
 ## ⚡ Quick Start (Windows)
 1. Download the latest `.exe` from [Releases](https://github.com/chamindudilsh/revanced-gui/releases)
 2. Double-click to run the GUI
